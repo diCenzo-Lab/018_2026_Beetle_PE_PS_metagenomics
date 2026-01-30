@@ -1,0 +1,11 @@
+	Insect	Read_count	Treatment	Replicate	Insect_batch
+Superworm_1a	Superworm	58694180	Standard	A	A
+Superworm_1b	Superworm	36047425	Standard	B	A
+Superworm_2a	Superworm	31362814	Standard	C	B
+Superworm_2b	Superworm	58579655	Standard	D	B
+Superworm_3a	Superworm	28524609	Standard	E	C
+Superworm_3b	Superworm	33358442	Standard	F	C
+Mealworm_1a	Mealworm	60864259	Standard	A	D
+Mealworm_2a	Mealworm	64755097	Standard	C	E
+Mealworm_2b	Mealworm	15530500	Standard	D	E
+Mealworm_3a	Mealworm	66695034	Standard	E	F

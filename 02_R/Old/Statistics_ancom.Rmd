@@ -1,0 +1,1694 @@
+---
+title: "Statistics"
+output: html_document
+date: "2025-12-30"
+---
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+options(width=200)
+
+```
+# Statistical analyses
+
+This document incudes the code for running all the statistical analyses of the mealworm and superworm gut microbiome data reported in this study. It includes the alpha-diversity, beta-diversity, and differential abundance analyses.
+
+
+# Load required libraries
+
+```{r Load libraries, results='hide', message=FALSE, warning=FALSE}
+
+library(lme4)
+library(phyloseq)
+library(car)
+library(emmeans)
+library(ggplot2)
+library(patchwork)
+library(vegan)
+library(dplyr)
+library(tidyr)
+library(kableExtra)
+library(ANCOMBC)
+
+```
+
+# Analyses of the standard diet across species
+## Prepare a phyloseq object for the standard diets for both insects
+
+Use the MAG abundance data and the GTDB-Tk output data to generate a phyloseq object.
+
+```{r Standard phyloseq object, results='hide', message=FALSE, warning=FALSE}
+
+# Load the OTU table
+otumat <- as.matrix(read.table("standard_MAG_abundances_depth.txt",
+                        header = TRUE, row.names = 1))
+
+# Load the taxonomy table
+taxmat <- as.matrix(read.table("standard_MAG_taxonomy.txt",
+                        header = TRUE, row.names = 1))
+
+# Load the sample metadata
+metadata <- read.table("standard_sample_metadata.txt",
+                       header = TRUE, row.names = 1)
+
+# Combine the data into a phyloseq object
+OTU <- otu_table(otumat, taxa_are_rows = TRUE)
+TAX <- tax_table(taxmat)
+META <- sample_data(metadata)
+ps <- phyloseq(OTU, TAX, META)
+
+# Convert MAG abundances to percentages
+ps.rel <- transform_sample_counts(ps, function(x) x / sum(x))
+
+```
+
+## Calculate alpha-diversity for the standard diets and perform statistical analysis
+
+Calculate Shannon and Simpson's diversity metrics and test if the values are statistically different between samples. Include insect batch and replicate as random effects, with replicate nested within batch.
+
+```{r Standard alpha diversity stats, message=FALSE, warning=FALSE}
+
+# Calculate alpha-diversity metrics
+richness <- estimate_richness(ps.rel, measures = c("Shannon", "Simpson"))
+
+# Add columns with relevant metadata
+richness$insect <- metadata$Insect
+richness$replicate <- metadata$Replicate
+richness$batch <- metadata$Insect_batch
+
+# Create factors for treatment, ordering the treatments as desired
+richness$treatment <- factor(richness$insect, 
+                                 levels = c("Mealworm", "Superworm"))
+
+# Perform statistical analysis on the Shannon data
+model.shannon <- lmer(log(Shannon) ~ insect + (1 | replicate), data=richness)
+summary(model.shannon)
+model.shannon.aov <- Anova(model.shannon, type = 2)
+model.shannon.aov
+model.shannon.em <- emmeans(model.shannon, pairwise ~ insect,
+                            infer = TRUE, type = "response")
+model.shannon.em$emmeans
+model.shannon.em$contrasts
+
+# Perform statistical analysis on the Simpson data
+model.simpson <- lmer(log(Simpson) ~ insect + (1 | replicate), data=richness)
+summary(model.simpson)
+model.simpson.aov <- Anova(model.simpson, type = 2)
+model.simpson.aov
+model.simpson.em <- emmeans(model.simpson, pairwise ~ insect,
+                            infer = TRUE, type = "response")
+model.simpson.em$emmeans
+model.simpson.em$contrasts
+
+```
+
+## Plot the alpha-diversity metrics for the standard diets
+
+Generate plots showing the Shannon and Simpson's diversity metrics
+
+```{r Standard alpha diversity plots, results='hide', message=FALSE, warning=FALSE}
+
+# Collect the emmeans for Shannon data
+emms.shannon <- as.data.frame(model.shannon.em$emmeans)
+emms.shannon$metric <- 'Shannon'
+
+# Collect the emmeans for teh Simpson's data
+emms.simpson <- as.data.frame(model.simpson.em$emmeans)
+emms.simpson$metric <- 'Simpson'
+
+# Plot the Shannon data
+p.shannon <- ggplot() +
+  geom_bar(data = emms.shannon,
+           aes(x = insect, y = response, fill = insect),
+           stat = "identity",
+           colour = "black") +
+  geom_errorbar(data = emms.shannon,
+                aes(x = insect, ymin = response-SE, ymax = response+SE),
+                stat = "identity", width = 0.5, size = 0.5) +
+  geom_jitter(data = richness,
+              aes(x = insect, y = Shannon),
+              width = 0.15, size = 1.25) +
+  facet_wrap(~metric, scales="free_y") +
+  theme_bw() +
+  theme(text = element_text(size = 17), legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.text.x = element_text(face="bold"),
+        axis.text.x = element_text(color="black"),
+        axis.text.y = element_text(color="black")) +
+  scale_y_continuous(lim=c(0,3.5), breaks=c(0.0,0.7,1.4,2.1,2.8,3.5)) + 
+  xlab("") + ylab("")
+
+# Plot the Simpson's data
+p.simpson <- ggplot() +
+  geom_bar(data = emms.simpson,
+           aes(x = insect, y = response, fill = insect),
+           stat = "identity",
+           colour = "black") +
+  geom_errorbar(data = emms.simpson,
+                aes(x = insect, ymin = response-SE, ymax = response+SE),
+                stat = "identity", width = 0.5, size = 0.5) +
+  geom_jitter(data = richness,
+              aes(x = insect, y = Simpson),
+              width = 0.15, size = 1.25) +
+  facet_wrap(~metric, scales="free_y") +
+  theme_bw() +
+  theme(text = element_text(size = 17), legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.text.x = element_text(face="bold"),
+        axis.text.x = element_text(color="black"),
+        axis.text.y = element_text(color="black")) +
+  scale_y_continuous(lim=c(0,1), breaks=c(0.0,0.2,0.4,0.6,0.8,1.0)) + 
+  xlab("") + ylab("")
+
+# Combine the plots as two panels in one figure
+p.shannon + p.simpson
+
+# Export a PDF of the figure
+pdf('Standard.alpha.pdf', width=10, height=5)
+p.shannon + p.simpson
+dev.off()
+
+```
+
+## Calculate beta-diversity and make a PCoA plot at the species level to compare insect species
+
+```{r Standard beta diversity species, message=FALSE, warning=FALSE}
+
+# Summarize at the species level, removing taxa not classified at the species level
+ps.rel.sp <- tax_glom(ps.rel, "Species", NArm = TRUE)
+
+# Calculate the bray curtis distances
+dist_bc <- phyloseq::distance(ps.rel.sp, method = "bray")
+
+# Extract sample data
+meta <- data.frame(sample_data(ps.rel.sp))
+
+# Perform a permutation test to test if the data meet the assumptions of PERMANOVA
+beta.bray <- betadisper(dist_bc, meta$Insect, type = "centroid", bias.adjust = TRUE)
+permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
+permdisp
+
+# Run the PERMANOVA test
+adonis.bray <- adonis2(dist_bc ~ Insect, data = meta, permutations = 10000, by = "terms")
+as.data.frame(adonis.bray)
+
+# Create a PCoA plot
+pso <- ordinate(ps.rel.sp, "PCoA", "bray")
+var_explained <- pso$values$Relative_eig * 100
+ordplot5 <- plot_ordination(ps.rel.sp, pso, type="samples", color="Insect", axes = c(1,2))
+p.beta.sp <- ordplot5 +  theme_bw() + theme(text = element_text(size = 17), aspect.ratio = 1) + 
+  geom_point(size = 4) +
+  geom_point(size = 4, shape=21, stroke=0.5, color="black") +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none") +
+  labs(x = paste0(" PC1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" PC2 [", round(var_explained[2], 1), "%]")) +
+  scale_x_continuous(lim=c(-0.50,0.50), breaks=c(-0.50,-0.25,0.00,0.25,0.50),
+                     labels = function(x) sprintf("%.2f", x)) +
+  scale_y_continuous(lim=c(-0.25,0.75), breaks=c(-0.25,0.00,0.25,0.50,0.75),
+                     labels = function(x) sprintf("%.2f", x))
+
+```
+
+## Calculate beta-diversity and make a PCoA plot at the genus level to compare insect species
+
+```{r Standard beta diversity genus, message=FALSE, warning=FALSE}
+
+# Summarize at the species level, removing taxa not classified at the species level
+ps.rel.genus <- tax_glom(ps.rel, "Genus", NArm = TRUE)
+
+# Calculate the bray curtis distances
+dist_bc <- phyloseq::distance(ps.rel.genus, method = "bray")
+
+# Extract sample data
+meta <- data.frame(sample_data(ps.rel.genus))
+
+# Perform a permutation test to test if the data meet the assumptions of PERMANOVA
+beta.bray <- betadisper(dist_bc, meta$Insect, type = "centroid", bias.adjust = TRUE)
+permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
+permdisp
+
+# Run the PERMANOVA test
+adonis.bray <- adonis2(dist_bc ~ Insect, data = meta, permutations = 10000, by = "terms")
+as.data.frame(adonis.bray)
+
+# Create a PCoA plot
+pso <- ordinate(ps.rel.genus, "PCoA", "bray")
+var_explained <- pso$values$Relative_eig * 100
+ordplot5 <- plot_ordination(ps.rel.genus, pso, type="samples", color="Insect", axes = c(1,2))
+p.beta.genus <- ordplot5 +  theme_bw() + theme(text = element_text(size = 17), aspect.ratio = 1) + 
+  geom_point(size = 4) +
+  geom_point(size = 4, shape=21, stroke=0.5, color="black") +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none") +
+  labs(x = paste0(" PC1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" PC2 [", round(var_explained[2], 1), "%]")) +
+  scale_x_continuous(lim=c(-0.60,0.60), breaks=c(-0.60,-0.30,0.00,0.30,0.60),
+                     labels = function(x) sprintf("%.2f", x)) +
+  scale_y_continuous(lim=c(-0.50,0.50), breaks=c(-0.50,-0.25,0.00,0.25,0.50),
+                     labels = function(x) sprintf("%.2f", x))
+
+```
+
+## Calculate beta-diversity and make a PCoA plot at the family level to compare insect species
+
+```{r Standard beta diversity family, message=FALSE, warning=FALSE}
+
+# Summarize at the species level, removing taxa not classified at the species level
+ps.rel.fam <- tax_glom(ps.rel, "Family", NArm = TRUE)
+
+# Calculate the bray curtis distances
+dist_bc <- phyloseq::distance(ps.rel.fam, method = "bray")
+
+# Extract sample data
+meta <- data.frame(sample_data(ps.rel.fam))
+
+# Perform a permutation test to test if the data meet the assumptions of PERMANOVA
+beta.bray <- betadisper(dist_bc, meta$Insect, type = "centroid", bias.adjust = TRUE)
+permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
+permdisp
+
+# Run the PERMANOVA test
+adonis.bray <- adonis2(dist_bc ~ Insect, data = meta, permutations = 10000, by = "terms")
+as.data.frame(adonis.bray)
+
+# Create a PCoA plot
+pso <- ordinate(ps.rel.fam, "PCoA", "bray")
+var_explained <- pso$values$Relative_eig * 100
+ordplot5 <- plot_ordination(ps.rel.fam, pso, type="samples", color="Insect", axes = c(1,2))
+p.beta.fam <- ordplot5 +  theme_bw() + theme(text = element_text(size = 17), aspect.ratio = 1) + 
+  geom_point(size = 4) +
+  geom_point(size = 4, shape=21, stroke=0.5, color="black") +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none") +
+  labs(x = paste0(" PC1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" PC2 [", round(var_explained[2], 1), "%]")) +
+  scale_x_continuous(lim=c(-0.60,0.60), breaks=c(-0.60,-0.30,0.00,0.30,0.60),
+                     labels = function(x) sprintf("%.2f", x)) +
+  scale_y_continuous(lim=c(-0.30,0.50), breaks=c(-0.30,-0.10,0.10,0.30,0.50), 
+                     labels = function(x) sprintf("%.2f", x))
+
+```
+
+## Calculate beta-diversity and make a PCoA plot at the order level to compare insect species
+
+```{r Standard beta diversity order, message=FALSE, warning=FALSE}
+
+# Summarize at the species level, removing taxa not classified at the species level
+ps.rel.order <- tax_glom(ps.rel, "Order", NArm = TRUE)
+
+# Calculate the bray curtis distances
+dist_bc <- phyloseq::distance(ps.rel.order, method = "bray")
+
+# Extract sample data
+meta <- data.frame(sample_data(ps.rel.order))
+
+# Perform a permutation test to test if the data meet the assumptions of PERMANOVA
+beta.bray <- betadisper(dist_bc, meta$Insect, type = "centroid", bias.adjust = TRUE)
+permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
+permdisp
+
+# Run the PERMANOVA test
+adonis.bray <- adonis2(dist_bc ~ Insect, data = meta, permutations = 10000, by = "terms")
+as.data.frame(adonis.bray)
+
+# Create a PCoA plot
+pso <- ordinate(ps.rel.order, "PCoA", "bray")
+var_explained <- pso$values$Relative_eig * 100
+ordplot5 <- plot_ordination(ps.rel.order, pso, type="samples", color="Insect", axes = c(1,2))
+p.beta.order <- ordplot5 +  theme_bw() + theme(text = element_text(size = 17), aspect.ratio = 1) + 
+  geom_point(size = 4) +
+  geom_point(size = 4, shape=21, stroke=0.5, color="black") +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none") +
+  labs(x = paste0(" PC1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" PC2 [", round(var_explained[2], 1), "%]")) +
+  scale_x_continuous(lim=c(-0.50,0.50), breaks=c(-0.50,-0.25,0.00,0.25,0.50),
+                     labels = function(x) sprintf("%.2f", x)) +
+  scale_y_continuous(lim=c(-0.40,0.40), breaks=c(-0.40,-0.20,0.00,0.20,0.40), 
+                     labels = function(x) sprintf("%.2f", x))
+
+```
+
+## Calculate beta-diversity and make a PCoA plot at the class level to compare insect species
+
+```{r Standard beta diversity class, message=FALSE, warning=FALSE}
+
+# Summarize at the species level, removing taxa not classified at the species level
+ps.rel.class <- tax_glom(ps.rel, "Class", NArm = TRUE)
+
+# Calculate the bray curtis distances
+dist_bc <- phyloseq::distance(ps.rel.class, method = "bray")
+
+# Extract sample data
+meta <- data.frame(sample_data(ps.rel.class))
+
+# Perform a permutation test to test if the data meet the assumptions of PERMANOVA
+beta.bray <- betadisper(dist_bc, meta$Insect, type = "centroid", bias.adjust = TRUE)
+permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
+permdisp
+
+# Run the PERMANOVA test
+adonis.bray <- adonis2(dist_bc ~ Insect, data = meta, permutations = 10000, by = "terms")
+as.data.frame(adonis.bray)
+
+# Create a PCoA plot
+pso <- ordinate(ps.rel.class, "PCoA", "bray")
+var_explained <- pso$values$Relative_eig * 100
+ordplot5 <- plot_ordination(ps.rel.class, pso, type="samples", color="Insect", axes = c(1,2))
+p.beta.class <- ordplot5 +  theme_bw() + theme(text = element_text(size = 17), aspect.ratio = 1) + 
+  geom_point(size = 4) +
+  geom_point(size = 4, shape=21, stroke=0.5, color="black") +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none") +
+  labs(x = paste0(" PC1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" PC2 [", round(var_explained[2], 1), "%]")) +
+  scale_x_continuous(lim=c(-0.50,0.50), breaks=c(-0.50,-0.25,0.00,0.25,0.50),
+                     labels = function(x) sprintf("%.2f", x)) +
+  scale_y_continuous(lim=c(-0.20,0.20), breaks=c(-0.10,-0.10,0.00,0.10,0.20), 
+                     labels = function(x) sprintf("%.2f", x))
+
+```
+
+## Calculate beta-diversity and make a PCoA plot at the phylum level to compare insect species
+
+```{r Standard beta diversity phylum, message=FALSE, warning=FALSE}
+
+# Summarize at the species level, removing taxa not classified at the species level
+ps.rel.phylum <- tax_glom(ps.rel, "Phylum", NArm = TRUE)
+
+# Calculate the bray curtis distances
+dist_bc <- phyloseq::distance(ps.rel.phylum, method = "bray")
+
+# Extract sample data
+meta <- data.frame(sample_data(ps.rel.phylum))
+
+# Perform a permutation test to test if the data meet the assumptions of PERMANOVA
+beta.bray <- betadisper(dist_bc, meta$Insect, type = "centroid", bias.adjust = TRUE)
+permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
+permdisp
+
+# Run the PERMANOVA test
+adonis.bray <- adonis2(dist_bc ~ Insect, data = meta, permutations = 10000, by = "terms")
+as.data.frame(adonis.bray)
+
+# Create a PCoA plot
+pso <- ordinate(ps.rel.phylum, "PCoA", "bray")
+var_explained <- pso$values$Relative_eig * 100
+ordplot5 <- plot_ordination(ps.rel.phylum, pso, type="samples", color="Insect", axes = c(1,2))
+p.beta.phylum <- ordplot5 +  theme_bw() + theme(text = element_text(size = 17), aspect.ratio = 1) + 
+  geom_point(size = 4) +
+  geom_point(size = 4, shape=21, stroke=0.5, color="black") +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none") +
+  labs(x = paste0(" PC1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" PC2 [", round(var_explained[2], 1), "%]")) +
+  scale_x_continuous(lim=c(-0.50,0.50), breaks=c(-0.50,-0.25,0.00,0.25,0.50),
+                     labels = function(x) sprintf("%.2f", x)) +
+  scale_y_continuous(lim=c(-0.20,0.20), breaks=c(-0.20,-0.10,0.00,0.10,0.20), 
+                     labels = function(x) sprintf("%.2f", x))
+
+```
+
+## Make a figure of all the PCoA plots at different taxonomic levels
+
+```{r Standard beta diversity plot, results=FALSE, message=FALSE, warning=FALSE}
+
+p.beta.sp + p.beta.genus + p.beta.fam + p.beta.order + p.beta.class + p.beta.phylum
+
+pdf('Standard.beta.pdf', width=9, height=5)
+p.beta.sp + p.beta.genus + p.beta.fam + p.beta.order + p.beta.class + p.beta.phylum
+dev.off()
+
+
+```
+
+## Compare taxon abundance in the standard data
+
+Summarize the most abundant taxa at the phylum level in the mealworms and superworms in the standard diets.
+
+```{r Standard phylum abundance, message=FALSE, warning=FALSE}
+
+# Agglomerate data at phylum level 
+ps.rel.phylum <- tax_glom(ps.rel, "Phylum", NArm = FALSE)
+
+# Create a dataframe from phyloseq object
+ps.rel.phylum.df <- psmelt(ps.rel.phylum)
+
+# Get summary statistics
+df <- ps.rel.phylum.df %>%
+  group_by(Insect, Phylum) %>%
+  summarize(mean = mean(Abundance, na.rm = TRUE),
+            median = median(Abundance, na.rm = TRUE),
+            stdev = sd(Abundance, na.rm = TRUE),
+            counts = n(),
+            se = stdev / sqrt(counts))
+
+# Create a table rounded to 1 decimal place
+df.w <- df %>%
+  mutate(stat = paste0(round(100 * mean, 1), " +/- ", round(100 * stdev, 1))) %>%
+  select(Insect, Phylum, stat) %>%
+  pivot_wider(
+    names_from = Insect,
+    values_from = stat
+  )
+kable(df.w, digits = 1, align = "l",
+      caption = "test") %>%
+  kable_classic(full_width = FALSE)
+
+# Create a table rounded to 6 decimal place
+df.w <- df %>%
+  mutate(stat = paste0(round(100 * mean, 6), " +/- ", round(100 * stdev, 6))) %>%
+  select(Insect, Phylum, stat) %>%
+  pivot_wider(
+    names_from = Insect,
+    values_from = stat
+  )
+kable(df.w, digits = 6, align = "l",
+      caption = "test") %>%
+  kable_classic(full_width = FALSE)
+
+```
+
+Summarize the most abundant taxa at the order level in the mealworms and superworms in the standard diets for the 10 most abundant orders.
+
+```{r Standard order abundance, message=FALSE, warning=FALSE}
+
+# Agglomerate data at order level 
+ps.rel.order <- tax_glom(ps.rel, "Order", NArm = FALSE)
+
+# Identify the most abundant orders
+top.taxa = names(sort(taxa_sums(ps.rel.order), TRUE)[1:10])
+top.taxa.table = cbind(tax_table(ps.rel.order), topTaxa = NA)
+top.taxa.table[top.taxa, "topTaxa"] <- as(tax_table(ps.rel.order)[top.taxa, "Order"], 
+                                          "character")
+tax_table(ps.rel.order) <- tax_table(top.taxa.table)
+
+# Create a dataframe from phyloseq object
+ps.rel.order.df <- psmelt(ps.rel.order)
+ps.rel.order.df$Order <- as.character(ps.rel.order.df$Order) #convert to character
+ps.rel.order.df.noNA <- na.omit(ps.rel.order.df)
+ps.rel.order.df <- ps.rel.order.df.noNA
+
+# Get summary statistics
+df <- ps.rel.order.df %>%
+  group_by(Insect, Order) %>%
+  summarize(mean = mean(Abundance, na.rm = TRUE),
+            median = median(Abundance, na.rm = TRUE),
+            stdev = sd(Abundance, na.rm = TRUE),
+            counts = n(),
+            se = stdev / sqrt(counts))
+
+# Create a table rounded to 1 decimal place
+df.w <- df %>%
+  mutate(stat = paste0(round(100 * mean, 1), " +/- ", round(100 * stdev, 1))) %>%
+  select(Insect, Order, stat) %>%
+  pivot_wider(
+    names_from = Insect,
+    values_from = stat
+  )
+kable(df.w, digits = 1, align = "l",
+      caption = "test") %>%
+  kable_classic(full_width = FALSE)
+
+# Create a table rounded to 6 decimal place
+df.w <- df %>%
+  mutate(stat = paste0(round(100 * mean, 6), " +/- ", round(100 * stdev, 6))) %>%
+  select(Insect, Order, stat) %>%
+  pivot_wider(
+    names_from = Insect,
+    values_from = stat
+  )
+kable(df.w, digits = 6, align = "l",
+      caption = "test") %>%
+  kable_classic(full_width = FALSE)
+
+```
+
+Summarize the most abundant taxa at the genus level in the mealworms and superworms in the standard diets for the 40 most abundant genera
+
+```{r Standard genus abundance, message=FALSE, warning=FALSE}
+
+# Agglomerate data at genus level 
+ps.rel.genus <- tax_glom(ps.rel, "Genus", NArm = FALSE)
+
+# Identify the most abundant orders
+top.taxa = names(sort(taxa_sums(ps.rel.genus), TRUE)[1:40])
+top.taxa.table = cbind(tax_table(ps.rel.genus), topTaxa = NA)
+top.taxa.table[top.taxa, "topTaxa"] <- as(tax_table(ps.rel.genus)[top.taxa, "Genus"], 
+                                          "character")
+tax_table(ps.rel.genus) <- tax_table(top.taxa.table)
+
+# Create a dataframe from phyloseq object
+ps.rel.genus.df <- psmelt(ps.rel.genus)
+ps.rel.genus.df$Genus <- as.character(ps.rel.genus.df$Genus) #convert to character
+ps.rel.genus.df.noNA <- na.omit(ps.rel.genus.df)
+ps.rel.genus.df <- ps.rel.genus.df.noNA
+
+# Get summary statistics
+df <- ps.rel.genus.df %>%
+  group_by(Insect, Genus) %>%
+  summarize(mean = mean(Abundance, na.rm = TRUE),
+            median = median(Abundance, na.rm = TRUE),
+            stdev = sd(Abundance, na.rm = TRUE),
+            counts = n(),
+            se = stdev / sqrt(counts))
+
+# Create a table rounded to 1 decimal place
+df.w <- df %>%
+  mutate(stat = paste0(round(100 * mean, 1), " +/- ", round(100 * stdev, 1))) %>%
+  select(Insect, Genus, stat) %>%
+  pivot_wider(
+    names_from = Insect,
+    values_from = stat
+  )
+kable(df.w, digits = 1, align = "l",
+      caption = "test") %>%
+  kable_classic(full_width = FALSE)
+
+# Create a table rounded to 6 decimal place
+df.w <- df %>%
+  mutate(stat = paste0(round(100 * mean, 6), " +/- ", round(100 * stdev, 6))) %>%
+  select(Insect, Genus, stat) %>%
+  pivot_wider(
+    names_from = Insect,
+    values_from = stat
+  )
+kable(df.w, digits = 6, align = "l",
+      caption = "test") %>%
+  kable_classic(full_width = FALSE)
+
+```
+
+## Clean the workspace to switch to mealworm data
+
+```{r Clear standard data, results='hide', message=FALSE, warning=FALSE}
+
+rm(list = ls())
+
+```
+
+
+# Analyse of the mealworm data across treatments
+## Prepare a phyloseq object for the mealworm data
+
+Use the MAG abundance data and the GTDB-Tk output data to generate a phyloseq object.
+
+```{r Mealworm phyloseq object, results='hide', message=FALSE, warning=FALSE}
+
+# Load the OTU table
+otumat <- as.matrix(read.table("mealworm_MAG_abundances_depth.txt",
+                        header = TRUE, row.names = 1))
+
+# Load the taxonomy table
+taxmat <- as.matrix(read.table("mealworm_MAG_taxonomy.txt",
+                        header = TRUE, row.names = 1))
+
+# Load the sample metadata
+metadata <- read.table("mealworm_sample_metadata.txt",
+                       header = TRUE, row.names = 1)
+
+# Combine the data into a phyloseq object
+OTU <- otu_table(otumat, taxa_are_rows = TRUE)
+TAX <- tax_table(taxmat)
+META <- sample_data(metadata)
+ps <- phyloseq(OTU, TAX, META)
+
+# Convert MAG abundances to percentages
+ps.rel <- transform_sample_counts(ps, function(x) x / sum(x))
+
+```
+
+## Calculate alpha-diversity for the mealworm data and perform statistical analysis
+
+Calculate Shannon and Simpson's diversity metrics and test if the values are statistically different between samples. Include insect batch and replicate as random effects, with replicate nested within batch.
+
+```{r Mealworm alpha diversity stats, message=FALSE, warning=FALSE}
+
+
+# Calculate alpha-diversity metrics
+richness <- estimate_richness(ps.rel, measures = c("Shannon", "Simpson"))
+
+# Add columns with relevant metadata
+richness$treatment <- metadata$Treatment
+richness$replicate <- metadata$Replicate
+richness$batch <- metadata$Insect_batch
+
+# Create factors for treatment, ordering the treatments as desired
+richness$treatment <- factor(richness$treatment, 
+                                 levels = c("Standard", "Polyethylene", "Polystyrene", "Starvation"))
+
+# Perform statistical analysis on the Shannon data
+model.shannon <- lmer(log(Shannon) ~ treatment + (1 | batch/replicate), data=richness)
+summary(model.shannon)
+model.shannon.aov <- Anova(model.shannon, type = 2)
+model.shannon.em <- emmeans(model.shannon, pairwise ~ treatment,
+                            infer = TRUE, type = "response")
+model.shannon.em$emmeans
+model.shannon.em$contrasts
+
+# Perform statistical analysis on the Simpson data
+model.simpson <- lmer(log(Simpson) ~ treatment + (1 | batch/replicate), data=richness)
+summary(model.simpson)
+model.simpson.aov <- Anova(model.simpson, type = 2)
+model.simpson.em <- emmeans(model.simpson, pairwise ~ treatment,
+                            infer = TRUE, type = "response")
+model.simpson.em$emmeans
+model.simpson.em$contrasts
+
+```
+
+## Plot the alpha-diversity metrics for the mealworm samples
+
+Generate plots showing the Shannon and Simpson's diversity metrics
+
+```{r Mealworm alpha diversity plots, results='hide', message=FALSE, warning=FALSE}
+
+# Collect the emmeans for Shannon data
+emms.shannon <- as.data.frame(model.shannon.em$emmeans)
+emms.shannon$metric <- 'Shannon'
+
+# Collect the emmeans for teh Simpson's data
+emms.simpson <- as.data.frame(model.simpson.em$emmeans)
+emms.simpson$metric <- 'Simpson'
+
+# Plot the Shannon data
+p.shannon <- ggplot() +
+  geom_bar(data = emms.shannon,
+           aes(x = treatment, y = response, fill = treatment),
+           stat = "identity",
+           colour = "black") +
+  geom_errorbar(data = emms.shannon,
+                aes(x = treatment, ymin = response-SE, ymax = response+SE),
+                stat = "identity", width = 0.5, size = 0.5) +
+  geom_jitter(data = richness,
+              aes(x = treatment, y = Shannon),
+              width = 0.15, size = 1.25) +
+  facet_wrap(~metric, scales="free_y") +
+  theme_bw() +
+  theme(text = element_text(size = 17), legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.text.x = element_text(face="bold"),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1, color="black"),
+        axis.text.y = element_text(color="black")) +
+  scale_y_continuous(lim=c(0,3), breaks=c(0.0,0.6,1.2,1.8,2.4,3.0)) + 
+  xlab("") + ylab("")
+
+# Plot the Simpson's data
+p.simpson <- ggplot() +
+  geom_bar(data = emms.simpson,
+           aes(x = treatment, y = response, fill = treatment),
+           stat = "identity",
+           colour = "black") +
+  geom_errorbar(data = emms.simpson,
+                aes(x = treatment, ymin = response-SE, ymax = response+SE),
+                stat = "identity", width = 0.5, size = 0.5) +
+  geom_jitter(data = richness,
+              aes(x = treatment, y = Simpson),
+              width = 0.15, size = 1.25) +
+  facet_wrap(~metric, scales="free_y") +
+  theme_bw() +
+  theme(text = element_text(size = 17), legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.text.x = element_text(face="bold"),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1, color="black"),
+        axis.text.y = element_text(color="black")) +
+  scale_y_continuous(lim=c(0,1), breaks=c(0.0,0.2,0.4,0.6,0.8,1.0)) + 
+  xlab("") + ylab("")
+
+# Combine the plots as two panels in one figure
+p.shannon + p.simpson
+
+# Export a PDF of the figure
+pdf('Mealworm.alpha.pdf', width=10, height=5)
+p.shannon + p.simpson
+dev.off()
+
+```
+
+## Calculate and plot beta-diversity for the mealworm data and perform statistical analysis
+
+```{r Mealworm beta diversity permdisp, message=FALSE, warning=FALSE}
+
+# Calculate the bray curtis distances
+dist_bc <- phyloseq::distance(ps.rel, method = "bray")
+
+# Extract sample data
+meta <- data.frame(sample_data(ps.rel))
+
+# Perform a permutation test to test if the data meet the assumptions of PERMANOVA
+beta.bray <- betadisper(dist_bc, meta$Treatment, type = "centroid", bias.adjust = TRUE)
+permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
+permdisp
+
+```
+
+The dispersion is significantly different between samples, which means the results of PERMANOVA are not reliable. Nevertheless, run the PERMANOVA (accounting for treatment and batch) and pair it with a PCoA to visualize the data.
+
+```{r Mealworm beta diversity permanova, message=FALSE, warning=FALSE}
+
+# Run the PERMANOVA test
+adonis.bray <- adonis2(dist_bc ~ Treatment + Insect_batch, data = meta, permutations = 10000, by = "terms")
+as.data.frame(adonis.bray)
+
+```
+
+```{r Mealworm beta diversity figure, results='hide', message=FALSE, warning=FALSE}
+
+# Create a PCoA plot
+sample_data(ps.rel)$Treatment <- factor(sample_data(ps.rel)$Treatment, 
+                                        levels = c("Standard", "Polyethylene", "Polystyrene", "Starvation"))
+pso <- ordinate(ps.rel, "PCoA", "bray")
+var_explained <- pso$values$Relative_eig * 100
+ordplot5 <- plot_ordination(ps.rel, pso, type="samples", 
+                            color="Treatment", shape="Insect_batch",
+                            axes = c(1,2))
+p.beta.pcoa <- ordplot5 +  theme_bw() + theme(text = element_text(size = 17), aspect.ratio = 1) + 
+  geom_point(size = 5) +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right") +
+  labs(x = paste0(" PC1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" PC2 [", round(var_explained[2], 1), "%]"))
+p.beta.pcoa
+
+# Save the figure
+pdf('Mealworm.beta.pcoa.pdf', width=10, height=5)
+p.beta.pcoa
+dev.off()
+
+```
+
+Now run a capscale analysis since it is less sensitive to differences in dispersion and thus should be more appropriate than PERMANOVA in this case.
+
+```{r Mealworm beta diversity capscale, message=FALSE, warning=FALSE}
+
+# Set the formula for the model
+class(fo <- dist_bc ~ meta$Treatment + meta$Insect_batch)
+
+# Run the capscale analysis followed by an ANOVA
+pso_cap <- ordinate(ps.rel, "CAP", "bray", formula=fo)
+anova(pso_cap, by = "terms", type = 2)
+
+```
+
+```{r Mealworm beta diversity capscale figure, results='hide', message=FALSE, warning=FALSE}
+
+# Get the relative eigenvalues
+all_eig <- eigenvals(pso_cap)
+rel_eig <- all_eig / sum(all_eig)
+var_explained <- round(rel_eig * 100, 1)
+
+# Plot the capscale results
+ordplot5 <- plot_ordination(ps.rel, pso_cap, type="samples", color="Treatment",
+                            shape="Insect_batch", axes = c(1,2))
+p.beta.cap <- ordplot5 +  theme_bw() + theme(text = element_text(size = 17), aspect.ratio = 1) + 
+  geom_point(size = 5) +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right") +
+  labs(x = paste0(" CAP 1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" CAP 2 [", round(var_explained[2], 1), "%]"))
+p.beta.cap
+
+# Save the figure
+pdf('Mealworm.beta.cap.pdf', width=10, height=5)
+p.beta.pcoa
+dev.off()
+
+```
+
+To mimic what will be done for the superworm data, see what the PCoA and CAP plots look like if summarized at the genus level
+
+```{r Mealworm beta diversity genus, message=FALSE, warning=FALSE}
+
+# Summarize at the genus level, removing taxa not classified at the genus level
+ps.rel.genus <- tax_glom(ps.rel, "Genus", NArm = TRUE)
+
+# Calculate the bray curtis distances
+dist_bc <- phyloseq::distance(ps.rel.genus, method = "bray")
+
+# Extract sample data
+meta <- data.frame(sample_data(ps.rel.genus))
+
+# Perform a permutation test to test if the data meet the assumptions of PERMANOVA
+beta.bray <- betadisper(dist_bc, meta$Treatment, type = "centroid", bias.adjust = TRUE)
+permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
+permdisp
+
+# Run the PERMANOVA test
+adonis.bray <- adonis2(dist_bc ~ Treatment + Insect_batch, data = meta, permutations = 10000, by = "terms")
+as.data.frame(adonis.bray)
+
+# Create a PCoA plot
+pso <- ordinate(ps.rel.genus, "PCoA", "bray")
+var_explained <- pso$values$Relative_eig * 100
+ordplot5 <- plot_ordination(ps.rel.genus, pso, type="samples", 
+                            color="Treatment", shape="Insect_batch", 
+                            axes = c(1,2))
+p.beta.pcoa.genus <- ordplot5 + theme_bw() + 
+  theme(text = element_text(size = 17), aspect.ratio = 1) +
+  geom_point(size = 5) +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none") +
+  labs(x = paste0(" PC1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" PC2 [", round(var_explained[2], 1), "%]"))
+
+# Set the formula for the model for the capscale analysis
+class(fo <- dist_bc ~ meta$Treatment + meta$Insect_batch)
+
+# Run the capscale analysis followed by an ANOVA
+pso_cap <- ordinate(ps.rel.genus, "CAP", "bray", formula=fo)
+anova(pso_cap, by = "terms", type = 2)
+
+# Get the relative eigenvalues
+all_eig <- eigenvals(pso_cap)
+rel_eig <- all_eig / sum(all_eig)
+var_explained <- round(rel_eig * 100, 1)
+
+# Plot the capscale results
+ordplot5 <- plot_ordination(ps.rel.genus, pso_cap, type="samples", color="Treatment",
+                            shape="Insect_batch", axes = c(1,2))
+p.beta.cap.genus <- ordplot5 + theme_bw() + 
+  theme(text = element_text(size = 17), aspect.ratio = 1) +
+  geom_point(size = 5) +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none") +
+  labs(x = paste0(" CAP 1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" CAP 2 [", round(var_explained[2], 1), "%]"))
+
+```
+
+```{r Mealworm beta diversity genus figure, results='hide', message=FALSE, warning=FALSE}
+
+# Display both graphs
+p.beta.pcoa.genus + p.beta.cap.genus
+
+# Save the figure
+pdf('Mealworm.beta.genus.pdf', width=10, height=5)
+p.beta.pcoa.genus + p.beta.cap.genus
+dev.off()
+
+```
+
+## Compare taxon abundance in the mealworm data
+
+Summarize the most abundant taxa at the phylum level in the mealworms across diets.
+
+```{r Mealworm phylum abundance, message=FALSE, warning=FALSE}
+
+# Agglomerate data at phylum level 
+ps.rel.phylum <- tax_glom(ps.rel, "Phylum", NArm = FALSE)
+
+# Create a dataframe from phyloseq object
+ps.rel.phylum.df <- psmelt(ps.rel.phylum)
+
+# Get summary statistics
+df <- ps.rel.phylum.df %>%
+  group_by(Treatment, Phylum) %>%
+  summarize(mean = mean(Abundance, na.rm = TRUE),
+            median = median(Abundance, na.rm = TRUE),
+            stdev = sd(Abundance, na.rm = TRUE),
+            counts = n(),
+            se = stdev / sqrt(counts))
+
+# Create a table rounded to 1 decimal place
+df.w <- df %>%
+  mutate(stat = paste0(round(100 * mean, 1), " +/- ", round(100 * stdev, 1))) %>%
+  select(Treatment, Phylum, stat) %>%
+  pivot_wider(
+    names_from = Treatment,
+    values_from = stat
+  )
+kable(df.w, digits = 1, align = "l",
+      caption = "test") %>%
+  kable_classic(full_width = FALSE)
+
+# Create a table rounded to 6 decimal place
+df.w <- df %>%
+  mutate(stat = paste0(round(100 * mean, 6), " +/- ", round(100 * stdev, 6))) %>%
+  select(Treatment, Phylum, stat) %>%
+  pivot_wider(
+    names_from = Treatment,
+    values_from = stat
+  )
+kable(df.w, digits = 6, align = "l",
+      caption = "test") %>%
+  kable_classic(full_width = FALSE)
+
+# Get overall summary statistics not divided by diet
+df <- ps.rel.phylum.df %>%
+  group_by(Phylum) %>%
+  summarize(mean = 100 * mean(Abundance, na.rm = TRUE),
+            stdev = 100 * sd(Abundance, na.rm = TRUE),
+            counts = n(),
+            se = stdev / sqrt(counts))
+kable(df, digits = 6, align = "l",
+      caption = "test") %>%
+  kable_classic(full_width = FALSE)
+
+```
+
+## Differential abundance analysis of taxa in the mealworm data
+
+Test whether any of the MAGs are enriched in the PE or PS diets relative to both the starvation and standard diets.
+
+```{r Mealworm MAG differential abundance, message=FALSE, warning=FALSE}
+
+# Set abundance filter function, filtering based on an average relative abundance ≥ 0.01%
+abundance_filter_function <- function(x) {
+  mean(x) >= 0.0001
+}
+
+# Filter the MAG data to a minimum average relative abundance of 0.01%
+ps.rel.filtered <- ps
+
+# Set the factors to get standard as the reference
+sample_data(ps.rel.filtered)$Treatment <- factor(sample_data(ps.rel.filtered)$Treatment, 
+                                                 levels = c("Standard", "Polyethylene",
+                                                            "Polystyrene","Starvation"))
+
+# Run ANCOMBC2 with standard as teh reference
+ancombc.standard <- ancombc2(data = ps.rel.filtered,
+                             fix_formula = "Treatment", 
+                             rand_formula = "(1 | Insect_batch/Replicate)",
+                             p_adj_method = "BH",
+                             alpha = 0.025,
+                             global = FALSE)
+ancombc.standard.res <- ancombc.standard$res
+
+# Set the factors to get standard as the reference
+sample_data(ps.rel.filtered)$Treatment <- factor(sample_data(ps.rel.filtered)$Treatment, 
+                                                 levels = c("Starvation", "Polyethylene",
+                                                            "Polystyrene","Standard"))
+
+# Run ANCOMBC2 with standard as the reference
+ancombc.starvation <- ancombc2(data = ps.rel.filtered,
+                             fix_formula = "Treatment", 
+                             rand_formula = "(1 | Insect_batch/Replicate)",
+                             p_adj_method = "BH",
+                             alpha = 0.025,
+                             global = FALSE)
+ancombc.starvation.res <- ancombc.starvation$res
+
+# Get differentialy abundant taxa for PE
+taxa.diff_abn.PE = data.frame()
+for(n in 1:nrow(ancombc.standard.res)) { 
+  if(ancombc.standard.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
+     ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
+    taxa.diff_abn.PE <- rbind(taxa.diff_abn.PE, res.asv$taxon[n])
+  }
+}
+
+# Print the results for PE
+if(nrow(taxa.diff_abn.PE) == 0) {
+  print("No MAGs met the criteria for differential abundance for PE")
+} else {
+  print(taxa.diff_abn.PE)
+}
+
+# Get differentialy abundant taxa for PS
+taxa.diff_abn.PS = data.frame()
+for(n in 1:nrow(ancombc.standard.res)) { 
+  if(ancombc.standard.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
+     ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
+    taxa.diff_abn.PS <- rbind(taxa.diff_abn.PS, res.asv$taxon[n])
+  }
+}
+
+# Print the results for PS
+if(nrow(taxa.diff_abn.PS) == 0) {
+  print("No MAGs met the criteria for differential abundance for PS")
+} else {
+  print(taxa.diff_abn.PS)
+}
+
+```
+
+Summarize the data at the species level and then test whether any species are enriched in the PE or PS diets relative to both the starvation and standard diets.
+
+```{r Mealworm species differential abundance, message=FALSE, warning=FALSE}
+
+# Summarize at the species level, removing taxa not classified at the species level
+ps.rel.species <- tax_glom(ps.rel, "Species", NArm = TRUE)
+
+# Set abundance filter function, filtering based on an average relative abundance ≥ 0.01%
+abundance_filter_function <- function(x) {
+  mean(x) >= 0.0001
+}
+
+# Filter the MAG data to a minimum average relative abundance of 0.01%
+ps.rel.filtered <- ps
+
+# Set the factors to get standard as the reference
+sample_data(ps.rel.filtered)$Treatment <- factor(sample_data(ps.rel.filtered)$Treatment, 
+                                                 levels = c("Standard", "Polyethylene",
+                                                            "Polystyrene","Starvation"))
+
+# Run ANCOMBC2 with standard as teh reference
+ancombc.standard <- ancombc2(data = ps.rel.filtered,
+                             fix_formula = "Treatment", 
+                             rand_formula = "(1 | Insect_batch/Replicate)",
+                             p_adj_method = "BH",
+                             alpha = 0.025,
+                             global = FALSE)
+ancombc.standard.res <- ancombc.standard$res
+
+# Set the factors to get standard as the reference
+sample_data(ps.rel.filtered)$Treatment <- factor(sample_data(ps.rel.filtered)$Treatment, 
+                                                 levels = c("Starvation", "Polyethylene",
+                                                            "Polystyrene","Standard"))
+
+# Run ANCOMBC2 with standard as the reference
+ancombc.starvation <- ancombc2(data = ps.rel.filtered,
+                             fix_formula = "Treatment", 
+                             rand_formula = "(1 | Insect_batch/Replicate)",
+                             p_adj_method = "BH",
+                             alpha = 0.025,
+                             global = FALSE)
+ancombc.starvation.res <- ancombc.starvation$res
+
+# Get differentialy abundant taxa for PE
+taxa.diff_abn.species.PE = data.frame()
+for(n in 1:nrow(ancombc.standard.res)) { 
+  if(ancombc.standard.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
+     ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
+    taxa.diff_abn.species.PE <- rbind(taxa.diff_abn.species.PE, res.asv$taxon[n])
+  }
+}
+
+# Print the results for PE
+if(nrow(taxa.diff_abn.species.PE) == 0) {
+  print("No species met the criteria for differential abundance for PE")
+} else {
+  print(taxa.diff_abn.species.PE)
+}
+
+# Get differentialy abundant taxa for PS
+taxa.diff_abn.species.PS = data.frame()
+for(n in 1:nrow(ancombc.standard.res)) { 
+  if(ancombc.standard.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
+     ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
+    taxa.diff_abn.species.PS <- rbind(taxa.diff_abn.species.PS, res.asv$taxon[n])
+  }
+}
+
+# Print the results for PS
+if(nrow(taxa.diff_abn.species.PS) == 0) {
+  print("No species met the criteria for differential abundance for PS")
+} else {
+  print(taxa.diff_abn.species.PS)
+}
+
+```
+
+## Clean the workspace to switch to superworm data
+
+```{r Clear mealworm data, results='hide', message=FALSE, warning=FALSE}
+
+rm(list = ls())
+
+```
+
+
+
+# Analyse of the superworm data across treatments
+## Prepare a phyloseq object for the superworm data
+
+Use the MAG abundance data and the GTDB-Tk output data to generate a phyloseq object.
+
+```{r Superworm phyloseq object, results='hide', message=FALSE, warning=FALSE}
+
+# Load the OTU table
+otumat <- as.matrix(read.table("superworm_MAG_abundances_depth.txt",
+                        header = TRUE, row.names = 1))
+
+# Load the taxonomy table
+taxmat <- as.matrix(read.table("superworm_MAG_taxonomy.txt",
+                        header = TRUE, row.names = 1))
+
+# Load the sample metadata
+metadata <- read.table("superworm_sample_metadata.txt",
+                       header = TRUE, row.names = 1)
+
+# Combine the data into a phyloseq object
+OTU <- otu_table(otumat, taxa_are_rows = TRUE)
+TAX <- tax_table(taxmat)
+META <- sample_data(metadata)
+ps <- phyloseq(OTU, TAX, META)
+
+# Convert MAG abundances to percentages
+ps.rel <- transform_sample_counts(ps, function(x) x / sum(x))
+
+```
+
+## Calculate alpha-diversity for the superworm data and perform statistical analysis
+
+Calculate Shannon and Simpson's diversity metrics and test if the values are statistically different between samples. Include insect batch and replicate as random effects, with replicate nested within batch.
+
+```{r Superworm alpha diversity stats, message=FALSE, warning=FALSE}
+
+
+# Calculate alpha-diversity metrics
+richness <- estimate_richness(ps.rel, measures = c("Shannon", "Simpson"))
+
+# Add columns with relevant metadata
+richness$treatment <- metadata$Treatment
+richness$replicate <- metadata$Replicate
+richness$batch <- metadata$Insect_batch
+
+# Create factors for treatment, ordering the treatments as desired
+richness$treatment <- factor(richness$treatment, 
+                                 levels = c("Standard", "Polyethylene", "Polystyrene", "Starvation"))
+
+# Perform statistical analysis on the Shannon data
+model.shannon <- lmer(log(Shannon) ~ treatment + (1 | batch/replicate), data=richness)
+summary(model.shannon)
+model.shannon.aov <- Anova(model.shannon, type = 2)
+model.shannon.em <- emmeans(model.shannon, pairwise ~ treatment,
+                            infer = TRUE, type = "response")
+model.shannon.em$emmeans
+model.shannon.em$contrasts
+
+# Perform statistical analysis on the Simpson data
+model.simpson <- lmer(log(Simpson) ~ treatment + (1 | batch/replicate), data=richness)
+summary(model.simpson)
+model.simpson.aov <- Anova(model.simpson, type = 2)
+model.simpson.em <- emmeans(model.simpson, pairwise ~ treatment,
+                            infer = TRUE, type = "response")
+model.simpson.em$emmeans
+model.simpson.em$contrasts
+
+```
+
+## Plot the alpha-diversity metrics for the superworm samples
+
+Generate plots showing the Shannon and Simpson's diversity metrics
+
+```{r Superworm alpha diversity plots, results='hide', message=FALSE, warning=FALSE}
+
+# Collect the emmeans for Shannon data
+emms.shannon <- as.data.frame(model.shannon.em$emmeans)
+emms.shannon$metric <- 'Shannon'
+
+# Collect the emmeans for teh Simpson's data
+emms.simpson <- as.data.frame(model.simpson.em$emmeans)
+emms.simpson$metric <- 'Simpson'
+
+# Plot the Shannon data
+p.shannon <- ggplot() +
+  geom_bar(data = emms.shannon,
+           aes(x = treatment, y = response, fill = treatment),
+           stat = "identity",
+           colour = "black") +
+  geom_errorbar(data = emms.shannon,
+                aes(x = treatment, ymin = response-SE, ymax = response+SE),
+                stat = "identity", width = 0.5, size = 0.5) +
+  geom_jitter(data = richness,
+              aes(x = treatment, y = Shannon),
+              width = 0.15, size = 1.25) +
+  facet_wrap(~metric, scales="free_y") +
+  theme_bw() +
+  theme(text = element_text(size = 17), legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.text.x = element_text(face="bold"),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1, color="black"),
+        axis.text.y = element_text(color="black")) +
+  scale_y_continuous(lim=c(0,3.5), breaks=c(0.0,0.7,1.4,2.1,2.8,3.5)) + 
+  xlab("") + ylab("")
+
+# Plot the Simpson's data
+p.simpson <- ggplot() +
+  geom_bar(data = emms.simpson,
+           aes(x = treatment, y = response, fill = treatment),
+           stat = "identity",
+           colour = "black") +
+  geom_errorbar(data = emms.simpson,
+                aes(x = treatment, ymin = response-SE, ymax = response+SE),
+                stat = "identity", width = 0.5, size = 0.5) +
+  geom_jitter(data = richness,
+              aes(x = treatment, y = Simpson),
+              width = 0.15, size = 1.25) +
+  facet_wrap(~metric, scales="free_y") +
+  theme_bw() +
+  theme(text = element_text(size = 17), legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.text.x = element_text(face="bold"),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1, color="black"),
+        axis.text.y = element_text(color="black")) +
+  scale_y_continuous(lim=c(0,1), breaks=c(0.0,0.2,0.4,0.6,0.8,1.0)) + 
+  xlab("") + ylab("")
+
+# Combine the plots as two panels in one figure
+p.shannon + p.simpson
+
+# Export a PDF of the figure
+pdf('Superworm.alpha.pdf', width=10, height=5)
+p.shannon + p.simpson
+dev.off()
+
+```
+
+## Calculate and plot beta-diversity for the superworm data and perform statistical analysis
+
+```{r Superworm beta diversity permdisp, message=FALSE, warning=FALSE}
+
+# Calculate the bray curtis distances
+dist_bc <- phyloseq::distance(ps.rel, method = "bray")
+
+# Extract sample data
+meta <- data.frame(sample_data(ps.rel))
+
+# Perform a permutation test to test if the data meet the assumptions of PERMANOVA
+beta.bray <- betadisper(dist_bc, meta$Treatment, type = "centroid", bias.adjust = TRUE)
+permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
+permdisp
+
+```
+
+Unlike the mealworm data, the dispersion is not significantly different between samples, which means the results of PERMANOVA should be reliable.
+
+```{r Superworm beta diversity permanova, message=FALSE, warning=FALSE}
+
+# Run the PERMANOVA test
+adonis.bray <- adonis2(dist_bc ~ Treatment + Insect_batch, data = meta, permutations = 10000, by = "terms")
+as.data.frame(adonis.bray)
+
+```
+
+```{r Superworm beta diversity figure, results='hide', message=FALSE, warning=FALSE}
+
+# Create a PCoA plot
+sample_data(ps.rel)$Treatment <- factor(sample_data(ps.rel)$Treatment, 
+                                        levels = c("Standard", "Polyethylene", "Polystyrene", "Starvation"))
+pso <- ordinate(ps.rel, "PCoA", "bray")
+var_explained <- pso$values$Relative_eig * 100
+ordplot5 <- plot_ordination(ps.rel, pso, type="samples", 
+                            color="Treatment", shape="Insect_batch",
+                            axes = c(1,2))
+p.beta.pcoa <- ordplot5 +  theme_bw() + theme(text = element_text(size = 17), aspect.ratio = 1) + 
+  geom_point(size = 5) +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right") +
+  labs(x = paste0(" PC1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" PC2 [", round(var_explained[2], 1), "%]"))
+p.beta.pcoa
+
+# Save the figure
+pdf('Superworm.beta.pcoa.pdf', width=10, height=5)
+p.beta.pcoa
+dev.off()
+
+```
+
+Now run a capscale analysis since it is less sensitive to differences in dispersion and thus should be more appropriate than PERMANOVA in this case.
+
+```{r Superworm beta diversity capscale, message=FALSE, warning=FALSE}
+
+# Set the formula for the model
+class(fo <- dist_bc ~ meta$Treatment + meta$Insect_batch)
+
+# Run the capscale analysis followed by an ANOVA
+pso_cap <- ordinate(ps.rel, "CAP", "bray", formula=fo)
+anova(pso_cap, by = "terms", type = 2)
+
+```
+
+```{r Superworm beta diversity capscale figure, results='hide', message=FALSE, warning=FALSE}
+
+# Get the relative eigenvalues
+all_eig <- eigenvals(pso_cap)
+rel_eig <- all_eig / sum(all_eig)
+var_explained <- round(rel_eig * 100, 1)
+
+# Plot the capscale results
+ordplot5 <- plot_ordination(ps.rel, pso_cap, type="samples", color="Treatment",
+                            shape="Insect_batch", axes = c(1,2))
+p.beta.cap <- ordplot5 +  theme_bw() + theme(text = element_text(size = 17), aspect.ratio = 1) + 
+  geom_point(size = 5) +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right") +
+  labs(x = paste0(" CAP 1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" CAP 2 [", round(var_explained[2], 1), "%]"))
+p.beta.cap
+
+# Save the figure
+pdf('Superworm.beta.cap.pdf', width=10, height=5)
+p.beta.pcoa
+dev.off()
+
+```
+
+Given the strong impact of batch, see what the PCoA and CAP plots look like if summarized at the genus level
+
+```{r Superworm beta diversity genus, message=FALSE, warning=FALSE}
+
+# Summarize at the genus level, removing taxa not classified at the genus level
+ps.rel.genus <- tax_glom(ps.rel, "Genus", NArm = TRUE)
+
+# Calculate the bray curtis distances
+dist_bc <- phyloseq::distance(ps.rel.genus, method = "bray")
+
+# Extract sample data
+meta <- data.frame(sample_data(ps.rel.genus))
+
+# Perform a permutation test to test if the data meet the assumptions of PERMANOVA
+beta.bray <- betadisper(dist_bc, meta$Treatment, type = "centroid", bias.adjust = TRUE)
+permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
+permdisp
+
+# Run the PERMANOVA test
+adonis.bray <- adonis2(dist_bc ~ Treatment + Insect_batch, data = meta, permutations = 10000, by = "terms")
+as.data.frame(adonis.bray)
+
+# Create a PCoA plot
+pso <- ordinate(ps.rel.genus, "PCoA", "bray")
+var_explained <- pso$values$Relative_eig * 100
+ordplot5 <- plot_ordination(ps.rel.genus, pso, type="samples", 
+                            color="Treatment", shape="Insect_batch", 
+                            axes = c(1,2))
+p.beta.pcoa.genus <- ordplot5 + theme_bw() + 
+  theme(text = element_text(size = 17), aspect.ratio = 1) +
+  geom_point(size = 5) +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none") +
+  labs(x = paste0(" PC1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" PC2 [", round(var_explained[2], 1), "%]"))
+
+# Set the formula for the model for the capscale analysis
+class(fo <- dist_bc ~ meta$Treatment + meta$Insect_batch)
+
+# Run the capscale analysis followed by an ANOVA
+pso_cap <- ordinate(ps.rel.genus, "CAP", "bray", formula=fo)
+anova(pso_cap, by = "terms", type = 2)
+
+# Get the relative eigenvalues
+all_eig <- eigenvals(pso_cap)
+rel_eig <- all_eig / sum(all_eig)
+var_explained <- round(rel_eig * 100, 1)
+
+# Plot the capscale results
+ordplot5 <- plot_ordination(ps.rel.genus, pso_cap, type="samples", color="Treatment",
+                            shape="Insect_batch", axes = c(1,2))
+p.beta.cap.genus <- ordplot5 + theme_bw() + 
+  theme(text = element_text(size = 17), aspect.ratio = 1) +
+  geom_point(size = 5) +
+  theme_bw() +
+  theme(text = element_text(size = 17),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none") +
+  labs(x = paste0(" CAP 1 [", round(var_explained[1], 1), "%]"),
+       y = paste0(" CAP 2 [", round(var_explained[2], 1), "%]"))
+
+```
+
+```{r Superworm beta diversity genus figure, results='hide', message=FALSE, warning=FALSE}
+
+# Display both graphs
+p.beta.pcoa.genus + p.beta.cap.genus
+
+# Save the figure
+pdf('Superworm.beta.genus.pdf', width=10, height=5)
+p.beta.pcoa.genus + p.beta.cap.genus
+dev.off()
+
+```
+
+## Compare taxon abundance in the superworm data
+
+Summarize the most abundant taxa at the phylum level in the superworms across diets.
+
+```{r Superworm phylum abundance, message=FALSE, warning=FALSE}
+
+# Agglomerate data at phylum level 
+ps.rel.phylum <- tax_glom(ps.rel, "Phylum", NArm = FALSE)
+
+# Create a dataframe from phyloseq object
+ps.rel.phylum.df <- psmelt(ps.rel.phylum)
+
+# Get summary statistics
+df <- ps.rel.phylum.df %>%
+  group_by(Treatment, Phylum) %>%
+  summarize(mean = mean(Abundance, na.rm = TRUE),
+            median = median(Abundance, na.rm = TRUE),
+            stdev = sd(Abundance, na.rm = TRUE),
+            counts = n(),
+            se = stdev / sqrt(counts))
+
+# Create a table rounded to 1 decimal place
+df.w <- df %>%
+  mutate(stat = paste0(round(100 * mean, 1), " +/- ", round(100 * stdev, 1))) %>%
+  select(Treatment, Phylum, stat) %>%
+  pivot_wider(
+    names_from = Treatment,
+    values_from = stat
+  )
+kable(df.w, digits = 1, align = "l",
+      caption = "test") %>%
+  kable_classic(full_width = FALSE)
+
+# Create a table rounded to 6 decimal place
+df.w <- df %>%
+  mutate(stat = paste0(round(100 * mean, 6), " +/- ", round(100 * stdev, 6))) %>%
+  select(Treatment, Phylum, stat) %>%
+  pivot_wider(
+    names_from = Treatment,
+    values_from = stat
+  )
+kable(df.w, digits = 6, align = "l",
+      caption = "test") %>%
+  kable_classic(full_width = FALSE)
+
+# Get overall summary statistics not divided by diet
+df <- ps.rel.phylum.df %>%
+  group_by(Phylum) %>%
+  summarize(mean = 100 * mean(Abundance, na.rm = TRUE),
+            stdev = 100 * sd(Abundance, na.rm = TRUE),
+            counts = n(),
+            se = stdev / sqrt(counts))
+kable(df, digits = 6, align = "l",
+      caption = "test") %>%
+  kable_classic(full_width = FALSE)
+
+```
+
+## Differential abundance analysis of taxa in the superworm data
+
+```{r Superworm MAG differential abundance, message=FALSE, warning=FALSE}
+
+# Set abundance filter function, filtering based on an average relative abundance ≥ 0.01%
+abundance_filter_function <- function(x) {
+  mean(x) >= 0.0001
+}
+
+# Filter the MAG data to a minimum average relative abundance of 0.01%
+ps.rel.filtered <- filter_taxa(ps.rel, abundance_filter_function, prune = TRUE)
+
+# Set the factors to get standard as the reference
+sample_data(ps.rel.filtered)$Treatment <- factor(sample_data(ps.rel.filtered)$Treatment, 
+                                                 levels = c("Standard", "Polyethylene",
+                                                            "Polystyrene","Starvation"))
+
+# Run ANCOMBC2 with standard as teh reference
+ancombc.standard <- ancombc2(data = ps.rel.filtered,
+                             fix_formula = "Treatment", 
+                             rand_formula = "(1 | Insect_batch/Replicate)",
+                             p_adj_method = "BH",
+                             alpha = 0.025,
+                             global = FALSE)
+ancombc.standard.res <- ancombc.standard$res
+
+# Set the factors to get standard as the reference
+sample_data(ps.rel.filtered)$Treatment <- factor(sample_data(ps.rel.filtered)$Treatment, 
+                                                 levels = c("Starvation", "Polyethylene",
+                                                            "Polystyrene","Standard"))
+
+# Run ANCOMBC2 with standard as the reference
+ancombc.starvation <- ancombc2(data = ps.rel.filtered,
+                             fix_formula = "Treatment", 
+                             rand_formula = "(1 | Insect_batch/Replicate)",
+                             p_adj_method = "BH",
+                             alpha = 0.025,
+                             global = FALSE)
+ancombc.starvation.res <- ancombc.starvation$res
+
+# Get differentialy abundant taxa for PE
+taxa.diff_abn.PE = data.frame()
+for(n in 1:nrow(ancombc.standard.res)) { 
+  if(ancombc.standard.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
+     ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
+    taxa.diff_abn.PE <- rbind(taxa.diff_abn.PE, res.asv$taxon[n])
+  }
+}
+
+# Print the results for PE
+if(nrow(taxa.diff_abn.PE) == 0) {
+  print("No MAGs met the criteria for differential abundance for PE")
+} else {
+  print(taxa.diff_abn.PE)
+}
+
+# Get differentialy abundant taxa for PS
+taxa.diff_abn.PS = data.frame()
+for(n in 1:nrow(ancombc.standard.res)) { 
+  if(ancombc.standard.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
+     ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
+    taxa.diff_abn.PS <- rbind(taxa.diff_abn.PS, res.asv$taxon[n])
+  }
+}
+
+# Print the results for PS
+if(nrow(taxa.diff_abn.PS) == 0) {
+  print("No MAGs met the criteria for differential abundance for PS")
+} else {
+  print(taxa.diff_abn.PS)
+}
+
+```
+
+Summarize the data at the species level and then test whether any species are enriched in the PE or PS diets relative to both the starvation and standard diets.
+
+```{r Superworm species differential abundance, message=FALSE, warning=FALSE}
+
+# Summarize at the species level, removing taxa not classified at the species level
+ps.rel.species <- tax_glom(ps.rel, "Species", NArm = TRUE)
+
+# Set abundance filter function, filtering based on an average relative abundance ≥ 0.01%
+abundance_filter_function <- function(x) {
+  mean(x) >= 0.0001
+}
+
+# Filter the MAG data to a minimum average relative abundance of 0.01%
+ps.rel.filtered <- filter_taxa(ps.rel.species, abundance_filter_function, prune = TRUE)
+
+# Set the factors to get standard as the reference
+sample_data(ps.rel.filtered)$Treatment <- factor(sample_data(ps.rel.filtered)$Treatment, 
+                                                 levels = c("Standard", "Polyethylene",
+                                                            "Polystyrene","Starvation"))
+
+# Run ANCOMBC2 with standard as teh reference
+ancombc.standard <- ancombc2(data = ps.rel.filtered,
+                             fix_formula = "Treatment", 
+                             rand_formula = "(1 | Insect_batch/Replicate)",
+                             p_adj_method = "BH",
+                             alpha = 0.025,
+                             global = FALSE)
+ancombc.standard.res <- ancombc.standard$res
+
+# Set the factors to get standard as the reference
+sample_data(ps.rel.filtered)$Treatment <- factor(sample_data(ps.rel.filtered)$Treatment, 
+                                                 levels = c("Starvation", "Polyethylene",
+                                                            "Polystyrene","Standard"))
+
+# Run ANCOMBC2 with standard as the reference
+ancombc.starvation <- ancombc2(data = ps.rel.filtered,
+                             fix_formula = "Treatment", 
+                             rand_formula = "(1 | Insect_batch/Replicate)",
+                             p_adj_method = "BH",
+                             alpha = 0.025,
+                             global = FALSE)
+ancombc.starvation.res <- ancombc.starvation$res
+
+# Get differentialy abundant taxa for PE
+taxa.diff_abn.species.PE = data.frame()
+for(n in 1:nrow(ancombc.standard.res)) { 
+  if(ancombc.standard.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
+     ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
+    taxa.diff_abn.species.PE <- rbind(taxa.diff_abn.species.PE, res.asv$taxon[n])
+  }
+}
+
+# Print the results for PE
+if(nrow(taxa.diff_abn.species.PE) == 0) {
+  print("No species met the criteria for differential abundance for PE")
+} else {
+  print(taxa.diff_abn.species.PE)
+}
+
+# Get differentialy abundant taxa for PS
+taxa.diff_abn.species.PS = data.frame()
+for(n in 1:nrow(ancombc.standard.res)) { 
+  if(ancombc.standard.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
+     ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
+     ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
+    taxa.diff_abn.species.PS <- rbind(taxa.diff_abn.species.PS, res.asv$taxon[n])
+  }
+}
+
+# Print the results for PS
+if(nrow(taxa.diff_abn.species.PS) == 0) {
+  print("No species met the criteria for differential abundance for PS")
+} else {
+  print(taxa.diff_abn.species.PS)
+}
+
+```
+
+## Clean the workspace to switch to CFU analysis
+
+```{r Clear superworm data, results='hide', message=FALSE, warning=FALSE}
+
+rm(list = ls())
+
+```
+
+# Analysis of CFU counts per insect
