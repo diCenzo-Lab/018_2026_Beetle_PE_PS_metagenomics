@@ -90,7 +90,8 @@ model.shannon <- lmer(log(Shannon) ~ insect + depth + insect:depth + (1 | batch)
 summary(model.shannon)
 model.shannon.aov <- Anova(model.shannon, type = 3)
 model.shannon.aov
-model.shannon.em <- emmeans(model.shannon, pairwise ~ insect,
+model.shannon.bt <- update(ref_grid(model.shannon), tran = "log")
+model.shannon.em <- emmeans(model.shannon.bt, pairwise ~ insect,
                             infer = TRUE, type = "response")
 model.shannon.em$emmeans
 model.shannon.em$contrasts
@@ -101,7 +102,8 @@ model.simpson <- lmer(log(Simpson) ~ insect + depth + insect:depth + (1 | batch)
 summary(model.simpson)
 model.simpson.aov <- Anova(model.simpson, type = 3)
 model.simpson.aov
-model.simpson.em <- emmeans(model.simpson, pairwise ~ insect,
+model.simpson.bt <- update(ref_grid(model.simpson), tran = "log")
+model.simpson.em <- emmeans(model.simpson.bt, pairwise ~ insect,
                             infer = TRUE, type = "response")
 model.simpson.em$emmeans
 model.simpson.em$contrasts
@@ -165,7 +167,7 @@ p.simpson <- ggplot() +
         strip.text.x = element_text(face="bold"),
         axis.text.x = element_text(color="black"),
         axis.text.y = element_text(color="black")) +
-  scale_y_continuous(lim=c(0,1), breaks=c(0.0,0.2,0.4,0.6,0.8,1.0)) + 
+  scale_y_continuous(lim=c(0,1.0), breaks=c(0.0,0.2,0.4,0.6,0.8,1.0)) + 
   xlab("") + ylab("")
 
 # Combine the plots as two panels in one figure
@@ -197,7 +199,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "margin")
+adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "terms")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -240,7 +242,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "margin")
+adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "terms")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -283,7 +285,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "margin")
+adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "terms")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -326,7 +328,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "margin")
+adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "terms")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -369,7 +371,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "margin")
+adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "terms")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -412,7 +414,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "margin")
+adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "terms")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -590,7 +592,8 @@ model.shannon <- lmer(log(Shannon) ~ treatment + depth + (1 | batch), data=richn
 summary(model.shannon)
 model.shannon.aov <- Anova(model.shannon, type = 2)
 model.shannon.aov
-model.shannon.em <- emmeans(model.shannon, pairwise ~ treatment,
+model.shannon.bt <- update(ref_grid(model.shannon), tran = "log")
+model.shannon.em <- emmeans(model.shannon.bt, pairwise ~ treatment,
                             infer = TRUE, type = "response")
 model.shannon.em$emmeans
 model.shannon.em$contrasts
@@ -600,7 +603,8 @@ model.simpson <- lmer(log(Simpson) ~ treatment  + depth + (1 | batch), data=rich
 summary(model.simpson)
 model.simpson.aov <- Anova(model.simpson, type = 2)
 model.simpson.aov
-model.simpson.em <- emmeans(model.simpson, pairwise ~ treatment,
+model.simpson.bt <- update(ref_grid(model.simpson), tran = "log")
+model.simpson.em <- emmeans(model.simpson.bt, pairwise ~ treatment,
                             infer = TRUE, type = "response")
 model.simpson.em$emmeans
 model.simpson.em$contrasts
@@ -746,7 +750,7 @@ class(fo <- dist_bc ~ meta$Treatment + meta$Insect_batch + meta$Read_count)
 
 # Run the capscale analysis followed by an ANOVA
 pso_cap <- ordinate(ps.rel, "CAP", "bray", formula=fo)
-anova(pso_cap, by = "terms", type = 2)
+anova(pso_cap, by = "margin", type = 2)
 
 ```
 
@@ -832,7 +836,7 @@ class(fo <- dist_bc ~ meta$Treatment + meta$Insect_batch + meta$Read_count)
 
 # Run the capscale analysis followed by an ANOVA
 pso_cap <- ordinate(ps.rel.genus, "CAP", "bray", formula=fo)
-anova(pso_cap, by = "terms", type = 2)
+anova(pso_cap, by = "margin", type = 2)
 
 # Get the relative eigenvalues
 all_eig <- eigenvals(pso_cap)
@@ -1080,7 +1084,8 @@ model.shannon <- lmer(log(Shannon) ~ treatment + depth + (1 | batch), data=richn
 summary(model.shannon)
 model.shannon.aov <- Anova(model.shannon, type = 2)
 model.shannon.aov
-model.shannon.em <- emmeans(model.shannon, pairwise ~ treatment,
+model.shannon.bt <- update(ref_grid(model.shannon), tran = "log")
+model.shannon.em <- emmeans(model.shannon.bt, pairwise ~ treatment,
                             infer = TRUE, type = "response")
 model.shannon.em$emmeans
 model.shannon.em$contrasts
@@ -1090,7 +1095,8 @@ model.simpson <- lmer(log(Simpson) ~ treatment + depth + (1 | batch), data=richn
 summary(model.simpson)
 model.simpson.aov <- Anova(model.simpson, type = 2)
 model.simpson.aov
-model.simpson.em <- emmeans(model.simpson, pairwise ~ treatment,
+model.simpson.bt <- update(ref_grid(model.simpson), tran = "log")
+model.simpson.em <- emmeans(model.simpson.bt, pairwise ~ treatment,
                             infer = TRUE, type = "response")
 model.simpson.em$emmeans
 model.simpson.em$contrasts
@@ -1236,7 +1242,7 @@ class(fo <- dist_bc ~ meta$Treatment + meta$Insect_batch + meta$Read_count)
 
 # Run the capscale analysis followed by an ANOVA
 pso_cap <- ordinate(ps.rel, "CAP", "bray", formula=fo)
-anova(pso_cap, by = "terms", type = 2)
+anova(pso_cap, by = "margin", type = 2)
 
 ```
 
@@ -1322,7 +1328,7 @@ class(fo <- dist_bc ~ meta$Treatment + meta$Insect_batch + meta$Read_count)
 
 # Run the capscale analysis followed by an ANOVA
 pso_cap <- ordinate(ps.rel.genus, "CAP", "bray", formula=fo)
-anova(pso_cap, by = "terms", type = 2)
+anova(pso_cap, by = "margin", type = 2)
 
 # Get the relative eigenvalues
 all_eig <- eigenvals(pso_cap)
