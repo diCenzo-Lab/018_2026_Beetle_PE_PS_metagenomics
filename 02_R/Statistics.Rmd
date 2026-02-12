@@ -85,10 +85,10 @@ richness$treatment <- factor(richness$insect,
                                  levels = c("Mealworm", "Superworm"))
 
 # Perform statistical analysis on the Shannon data
-model.shannon <- lmer(log(Shannon) ~ insect + insect:depth + (1 | batch),
+model.shannon <- lmer(log(Shannon) ~ insect + depth + insect:depth + (1 | batch),
                       data=richness)
 summary(model.shannon)
-model.shannon.aov <- Anova(model.shannon, type = 2)
+model.shannon.aov <- Anova(model.shannon, type = 3)
 model.shannon.aov
 model.shannon.em <- emmeans(model.shannon, pairwise ~ insect,
                             infer = TRUE, type = "response")
@@ -96,9 +96,10 @@ model.shannon.em$emmeans
 model.shannon.em$contrasts
 
 # Perform statistical analysis on the Simpson data
-model.simpson <- lmer(log(Simpson) ~ insect + insect:depth + (1 | batch), data=richness)
+model.simpson <- lmer(log(Simpson) ~ insect + depth + insect:depth + (1 | batch),
+                      data=richness)
 summary(model.simpson)
-model.simpson.aov <- Anova(model.simpson, type = 2)
+model.simpson.aov <- Anova(model.simpson, type = 3)
 model.simpson.aov
 model.simpson.em <- emmeans(model.simpson, pairwise ~ insect,
                             infer = TRUE, type = "response")
@@ -196,7 +197,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Insect + Insect:Read_count + Insect_batch, data = meta, permutations = 10000, by = "terms")
+adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "margin")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -239,7 +240,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Insect + Insect:Read_count + Insect_batch, data = meta, permutations = 10000, by = "terms")
+adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "margin")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -282,7 +283,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Insect + Insect:Read_count + Insect_batch, data = meta, permutations = 10000, by = "terms")
+adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "margin")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -325,7 +326,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Insect + Insect:Read_count + Insect_batch, data = meta, permutations = 10000, by = "terms")
+adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "margin")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -368,7 +369,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Insect + Insect:Read_count + Insect_batch, data = meta, permutations = 10000, by = "terms")
+adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "margin")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -411,7 +412,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Insect + Insect:Read_count + Insect_batch, data = meta, permutations = 10000, by = "terms")
+adonis.bray <- adonis2(dist_bc ~ Insect + Read_count + Insect:Read_count, data = meta, permutations = 10000, by = "margin")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -698,7 +699,7 @@ The dispersion is significantly different between samples, which means the resul
 ```{r Mealworm beta diversity permanova, message=FALSE, warning=FALSE}
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Treatment + Insect_batch + Read_count, data = meta, permutations = 10000, by = "terms")
+adonis.bray <- adonis2(dist_bc ~ Treatment + Insect_batch + Read_count, data = meta, permutations = 10000, by = "margin")
 as.data.frame(adonis.bray)
 
 ```
@@ -801,7 +802,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Treatment + Insect_batch + Read_count, data = meta, permutations = 10000, by = "terms")
+adonis.bray <- adonis2(dist_bc ~ Treatment + Insect_batch + Read_count, data = meta, permutations = 10000, by = "margin")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -818,7 +819,7 @@ p.beta.pcoa.genus <- ordplot5 + theme_bw() +
   theme(text = element_text(size = 17),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
-        legend.position = "none") +
+        legend.position = "right") +
   labs(x = paste0(" PC1 [", round(var_explained[1], 1), "%]"),
        y = paste0(" PC2 [", round(var_explained[2], 1), "%]")) +
   scale_x_continuous(lim=c(-0.50,0.50), breaks=c(-0.50,-0.25,0.00,0.25,0.50),
@@ -849,7 +850,7 @@ p.beta.cap.genus <- ordplot5 + theme_bw() +
   theme(text = element_text(size = 17),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
-        legend.position = "none") +
+        legend.position = "right") +
   labs(x = paste0(" CAP 1 [", round(var_explained[1], 1), "%]"),
        y = paste0(" CAP 2 [", round(var_explained[2], 1), "%]")) +
   scale_x_continuous(lim=c(-1.50,1.50), breaks=c(-1.50,-0.75,0.00,0.75,1.50),
@@ -1188,7 +1189,7 @@ Unlike the mealworm data, the dispersion is not significantly different between 
 ```{r Superworm beta diversity permanova, message=FALSE, warning=FALSE}
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Treatment + Insect_batch + Read_count, data = meta, permutations = 10000, by = "terms")
+adonis.bray <- adonis2(dist_bc ~ Treatment + Insect_batch + Read_count, data = meta, permutations = 10000, by = "margin")
 as.data.frame(adonis.bray)
 
 ```
@@ -1291,7 +1292,7 @@ permdisp <- permutest(beta.bray, pairwise = TRUE, permutations = 10000)
 permdisp
 
 # Run the PERMANOVA test
-adonis.bray <- adonis2(dist_bc ~ Treatment + Insect_batch + Read_count, data = meta, permutations = 10000, by = "terms")
+adonis.bray <- adonis2(dist_bc ~ Treatment + Insect_batch + Read_count, data = meta, permutations = 10000, by = "margin")
 as.data.frame(adonis.bray)
 
 # Create a PCoA plot
@@ -1308,7 +1309,7 @@ p.beta.pcoa.genus <- ordplot5 + theme_bw() +
   theme(text = element_text(size = 17),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
-        legend.position = "none") +
+        legend.position = "right") +
   labs(x = paste0(" PC1 [", round(var_explained[1], 1), "%]"),
        y = paste0(" PC2 [", round(var_explained[2], 1), "%]")) +
   scale_x_continuous(lim=c(-0.50,0.50), breaks=c(-0.50,-0.25,0.00,0.25,0.50),
@@ -1339,7 +1340,7 @@ p.beta.cap.genus <- ordplot5 + theme_bw() +
   theme(text = element_text(size = 17),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
-        legend.position = "none") +
+        legend.position = "right") +
   labs(x = paste0(" CAP 1 [", round(var_explained[1], 1), "%]"),
        y = paste0(" CAP 2 [", round(var_explained[2], 1), "%]")) +
   scale_x_continuous(lim=c(-1.40,1.40), breaks=c(-1.40,-0.70,0.00,0.70,1.40),
@@ -1549,4 +1550,71 @@ rm(list = ls())
 ```
 
 # Analysis of CFU counts per insect
+
+```{r Load CFU data, results='hide', message=FALSE, warning=FALSE}
+
+# Load the data
+data <- read.table("cfu.counts.tsv", header = TRUE)
+
+```
+
+First run the t-test on just the standard diet samples
+
+```{r CFU data 1, message=FALSE, warning=FALSE}
+
+# Paired t-test for the standard diet
+t.test(data$Ratio[1:3], data$Ratio[4:6], paired=TRUE)
+
+```
+
+Now run the t-test on just the PS diet samples
+
+```{r CFU data 2, message=FALSE, warning=FALSE}
+
+# Paired t-test for the plastic diet
+t.test(data$Ratio[7:9], data$Ratio[10:12], paired=TRUE)
+
+```
+
+There is a clear outlier in the PS diet samples, so remove it and rerun the t-test in case it has an impact
+
+```{r CFU data 3, message=FALSE, warning=FALSE}
+
+# Remove outlier
+data.cleaned <- data
+data.cleaned <- data.cleaned[-c(8), ]
+data.cleaned <- data.cleaned[-c(10), ]
+
+# Paired t-test for the plastic diet
+t.test(data.cleaned$Ratio[7:8], data.cleaned$Ratio[9:10], paired=TRUE)
+
+```
+
+Given there is no effect per diet, check if combining the data gives more power to detect an effect
+
+```{r CFU data 4, message=FALSE, warning=FALSE}
+
+# Rearrange the data to make this easier to run
+data.rearranged <- data %>% arrange(desc(Spin_condition))
+
+# Paired t-test overall
+t.test(data.rearranged$Ratio[1:6], data.rearranged$Ratio[7:12], paired=TRUE)
+
+```
+
+Still not statistically significant; confirm this is true with the outlier removed
+
+```{r CFU data 5, message=FALSE, warning=FALSE}
+
+# Remove outlier
+data.rearranged.cleaned <- data.rearranged
+data.rearranged.cleaned <- data.rearranged.cleaned[-c(5), ]
+data.rearranged.cleaned <- data.rearranged.cleaned[-c(10), ]
+
+# Paired t-test overall
+t.test(data.rearranged.cleaned$Ratio[1:5], data.rearranged.cleaned$Ratio[6:10], paired=TRUE)
+
+```
+
+Based on these results, while there is a massive difference in bacterial versus fungal CFU, there is no statistically significant effect of the centrifugation step.
 
