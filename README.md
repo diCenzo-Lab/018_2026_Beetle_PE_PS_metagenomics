@@ -1,4 +1,4 @@
-# Host population has a larger impact on the gut microbiomes of mealworms and superworms than does the ingestion of polyethylene or polystyrene
+# Host cohort has a larger impact on the gut microbiomes of mealworms and superworms than does the ingestion of polyethylene or polystyrene
 
 This repository contains the scripts and input files required to repeat the analyses reported in the associated article.
 
