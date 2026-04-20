@@ -917,7 +917,7 @@ for(n in 1:nrow(ancombc.standard.res)) {
      ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
      ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
      ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
-    taxa.diff_abn.PE <- rbind(taxa.diff_abn.PE, res.asv$taxon[n])
+    taxa.diff_abn.PE <- rbind(taxa.diff_abn.PE, ancombc.standard.res$taxon[n])
   }
 }
 
@@ -935,7 +935,7 @@ for(n in 1:nrow(ancombc.standard.res)) {
      ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
      ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
      ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
-    taxa.diff_abn.PS <- rbind(taxa.diff_abn.PS, res.asv$taxon[n])
+    taxa.diff_abn.PS <- rbind(taxa.diff_abn.PS, ancombc.standard.res$taxon[n])
   }
 }
 
@@ -990,7 +990,7 @@ for(n in 1:nrow(ancombc.standard.res)) {
      ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
      ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
      ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
-    taxa.diff_abn.species.PE <- rbind(taxa.diff_abn.species.PE, res.asv$taxon[n])
+    taxa.diff_abn.species.PE <- rbind(taxa.diff_abn.species.PE, ancombc.standard.res$taxon[n])
   }
 }
 
@@ -1008,7 +1008,7 @@ for(n in 1:nrow(ancombc.standard.res)) {
      ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
      ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
      ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
-    taxa.diff_abn.species.PS <- rbind(taxa.diff_abn.species.PS, res.asv$taxon[n])
+    taxa.diff_abn.species.PS <- rbind(taxa.diff_abn.species.PS, ancombc.standard.res$taxon[n])
   }
 }
 
@@ -1407,7 +1407,7 @@ for(n in 1:nrow(ancombc.standard.res)) {
      ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
      ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
      ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
-    taxa.diff_abn.PE <- rbind(taxa.diff_abn.PE, res.asv$taxon[n])
+    taxa.diff_abn.PE <- rbind(taxa.diff_abn.PE, ancombc.standard.res$taxon[n])
   }
 }
 
@@ -1425,7 +1425,7 @@ for(n in 1:nrow(ancombc.standard.res)) {
      ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
      ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
      ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
-    taxa.diff_abn.PS <- rbind(taxa.diff_abn.PS, res.asv$taxon[n])
+    taxa.diff_abn.PS <- rbind(taxa.diff_abn.PS, ancombc.standard.res$taxon[n])
   }
 }
 
@@ -1480,7 +1480,7 @@ for(n in 1:nrow(ancombc.standard.res)) {
      ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
      ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
      ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
-    taxa.diff_abn.species.PE <- rbind(taxa.diff_abn.species.PE, res.asv$taxon[n])
+    taxa.diff_abn.species.PE <- rbind(taxa.diff_abn.species.PE, ancombc.standard.res$taxon[n])
   }
 }
 
@@ -1498,7 +1498,7 @@ for(n in 1:nrow(ancombc.standard.res)) {
      ancombc.standard.res$passed_ss_TreatmentPolyethylene[n] == TRUE &
      ancombc.starvation.res$diff_TreatmentPolyethylene[n] == TRUE & 
      ancombc.starvation.res$passed_ss_TreatmentPolyethylene[n] == TRUE) { 
-    taxa.diff_abn.species.PS <- rbind(taxa.diff_abn.species.PS, res.asv$taxon[n])
+    taxa.diff_abn.species.PS <- rbind(taxa.diff_abn.species.PS, ancombc.standard.res$taxon[n])
   }
 }
 
